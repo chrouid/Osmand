@@ -168,7 +168,7 @@
 					android:paddingLeft="@dimen/content_padding_standard"
 					android:paddingRight="@dimen/content_padding_standard"
 					android:textColor="@color/app_bar_title_light"
-					android:textSize="@dimen/title_text_size"
+					android:textSize="14sp"
 					app:typeface="@string/font_roboto_mono_bold"
 					tools:text="@string/sharing_enabled" />
 

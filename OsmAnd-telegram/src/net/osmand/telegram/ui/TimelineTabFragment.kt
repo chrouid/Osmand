@@ -21,8 +21,8 @@ import net.osmand.telegram.helpers.TelegramUiHelper
 import net.osmand.telegram.helpers.TelegramUiHelper.ListItem
 import net.osmand.telegram.ui.TimelineTabFragment.LiveNowListAdapter.BaseViewHolder
 import net.osmand.telegram.utils.AndroidUtils
-import net.osmand.telegram.utils.GPXUtilities
 import net.osmand.telegram.utils.OsmandFormatter
+import net.osmand.telegram.utils.OsmandLocationUtils
 import java.util.*
 
 
@@ -72,6 +72,8 @@ class TimelineTabFragment : Fragment() {
 			settings.monitoringEnabled = monitoringEnabled
 			switcher.isChecked = monitoringEnabled
 			monitoringTv.setText(if (monitoringEnabled) R.string.monitoring_is_enabled else R.string.monitoring_is_disabled)
+			mainView.findViewById<TextView>(R.id.monitoring_title).text = " bd items size ${app.messagesDbHelper.getLocationMessages().size}"
+			updateList()
 		}
 
 		dateStartBtn = mainView.findViewById<TextView>(R.id.date_start_btn).apply {
@@ -169,15 +171,18 @@ class TimelineTabFragment : Fragment() {
 		val ignoredUsersIds = ArrayList<Int>()
 		val currentUserId = telegramHelper.getCurrentUser()?.id
 		if (currentUserId != null) {
-			val currentUserGpx:GPXUtilities.GPXFile? = app.savingTracksDbHelper.collectRecordedDataForUser(currentUserId, 0, start, end)
-			if (currentUserGpx != null) {
-				TelegramUiHelper.gpxToChatItem(telegramHelper, currentUserGpx, true)?.also {
-					res.add(it)
+			val locationMessages =
+				app.messagesDbHelper.collectRecordedDataForUser(currentUserId, 0, start, end)
+				OsmandLocationUtils.convertLocationMessagesToGpxFiles(locationMessages, false).forEach {
+					TelegramUiHelper.gpxToChatItem(telegramHelper, it, true)?.also { chatItem ->
+						res.add(chatItem)
+					}
 				}
-			}
 			ignoredUsersIds.add(currentUserId)
 		}
-		val gpxFiles = app.savingTracksDbHelper.collectRecordedDataForUsers(start, end, ignoredUsersIds)
+		val locationMessages =
+			app.messagesDbHelper.collectRecordedDataForUsers(start, end, ignoredUsersIds)
+		val gpxFiles = OsmandLocationUtils.convertLocationMessagesToGpxFiles(locationMessages)
 		val e = System.currentTimeMillis()
 
 		gpxFiles.forEach {
@@ -188,6 +193,7 @@ class TimelineTabFragment : Fragment() {
 
 		adapter.items = sortAdapterItems(res)
 		log.debug("updateList $s dif: ${e - s}")
+		mainView.findViewById<TextView>(R.id.monitoring_title).text = " bd items size ${app.messagesDbHelper.getLocationMessages().size}"
 	}
 
 	private fun sortAdapterItems(list: MutableList<ListItem>): MutableList<ListItem> {
@@ -242,6 +248,8 @@ class TimelineTabFragment : Fragment() {
 						}
 					}
 				}
+
+				holder.description?.text = " points size: ${gpx!!.proccessPoints().first().points.size}"
 
 				holder.imageButton?.visibility = View.GONE
 				holder.showOnMapRow?.visibility = View.GONE

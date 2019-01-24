@@ -151,6 +151,10 @@ class MyLocationTabFragment : Fragment(), TelegramListener {
 				sharingStatus.indexOf(" "), sharingStatus.length, 0
 			)
 			text = spannable
+			setOnClickListener {
+				app.telegramHelper.networkChange()
+				text = "shID ${app.shareLocationHelper.index} shTId ${app.shareLocationHelper.indexTextShare} shMId ${app.shareLocationHelper.indexMapShare} tTId ${app.telegramHelper.textIndex} tMId ${app.telegramHelper.mapIndex} hTId ${app.telegramHelper.handleTextIndex} hMId ${app.telegramHelper.handleMapIndex}"
+			}
 		}
 
 		sharingStatusIcon = mainView.findViewById<ImageView>(R.id.sharing_status_icon)
@@ -511,6 +515,9 @@ class MyLocationTabFragment : Fragment(), TelegramListener {
 		} else {
 			adapter.items = items
 		}
+		titleContainer.findViewById<TextView>(R.id.status_title).apply {
+			text = "shID ${app.shareLocationHelper.index} shTId ${app.shareLocationHelper.indexTextShare} shMId ${app.shareLocationHelper.indexMapShare} tTId ${app.telegramHelper.textIndex} tMId ${app.telegramHelper.mapIndex} hTId ${app.telegramHelper.handleTextIndex} hMId ${app.telegramHelper.handleMapIndex}"
+		}
 	}
 
 	private fun sortAdapterItems(list: MutableList<TdApi.Object>): MutableList<TdApi.Object> {
@@ -597,7 +604,9 @@ class MyLocationTabFragment : Fragment(), TelegramListener {
 				is TdApi.User -> TelegramUiHelper.getUserName(item)
 				else -> null
 			}
-
+			holder.icon?.setOnClickListener {
+				app.forceUpdateMyLocation()
+			}
 			holder.title?.text = title
 			if (holder is ChatViewHolder) {
 				holder.description?.visibility = View.GONE

@@ -3,6 +3,7 @@ package net.osmand.telegram.helpers
 import net.osmand.Location
 import net.osmand.PlatformUtil
 import net.osmand.telegram.*
+import net.osmand.telegram.helpers.MessagesDbHelper.LocationMessage
 import net.osmand.telegram.notifications.TelegramNotification.NotificationType
 import net.osmand.telegram.utils.AndroidNetworkUtils
 import net.osmand.telegram.utils.BASE_URL
@@ -26,6 +27,12 @@ class ShareLocationHelper(private val app: TelegramApplication) {
 		private set
 
 	var lastLocationMessageSentTime: Long = 0
+
+	var index: Long = 0
+
+	var indexTextShare: Long = 0
+
+	var indexMapShare: Long = 0
 
 	var lastLocation: Location? = null
 		set(value) {
@@ -57,32 +64,75 @@ class ShareLocationHelper(private val app: TelegramApplication) {
 
 				if (user != null && sharingMode == user.id.toString()) {
 					when (app.settings.shareTypeValue) {
-						SHARE_TYPE_MAP -> app.telegramHelper.sendLiveLocationMessage(chatsShareInfo, latitude, longitude)
-						SHARE_TYPE_TEXT -> app.telegramHelper.sendLiveLocationText(chatsShareInfo, location)
+						SHARE_TYPE_MAP -> {
+							chatsShareInfo.values.forEach{
+								val message = LocationMessage(user.id,it.chatId,latitude,longitude,location.altitude,location.speed.toDouble(),
+									location.accuracy.toDouble(),location.time,LocationMessage.TYPE_USER_MAP,0,it.currentMapMessageId)
+								log.debug("add text message $message")
+								app.messagesDbHelper.addLocationMessage(message)
+							}
+//							app.telegramHelper.sendLiveLocationMessage(chatsShareInfo, latitude, longitude)
+						}
+						SHARE_TYPE_TEXT -> {
+							chatsShareInfo.values.forEach{
+								val message = LocationMessage(user.id,it.chatId,latitude,longitude,location.altitude,location.speed.toDouble(),
+									location.accuracy.toDouble(),location.time,LocationMessage.TYPE_USER_TEXT,0,it.currentTextMessageId)
+								log.debug("add map message $message")
+								app.messagesDbHelper.addLocationMessage(message)
+							}
+//							app.telegramHelper.sendLiveLocationText(chatsShareInfo, location)
+						}
 						SHARE_TYPE_MAP_AND_TEXT -> {
-							app.telegramHelper.sendLiveLocationMessage(chatsShareInfo, latitude, longitude)
-							app.telegramHelper.sendLiveLocationText(chatsShareInfo, location)
+							chatsShareInfo.values.forEach{
+								val mapMessage = LocationMessage(user.id,it.chatId,latitude,longitude,location.altitude,location.speed.toDouble(),
+									location.accuracy.toDouble(),location.time,LocationMessage.TYPE_USER_MAP,0,it.currentMapMessageId)
+								log.debug("add text message $mapMessage")
+								app.messagesDbHelper.addLocationMessage(mapMessage)
+								val textMessage = LocationMessage(user.id,it.chatId,latitude,longitude,location.altitude,location.speed.toDouble(),
+									location.accuracy.toDouble(),location.time,LocationMessage.TYPE_USER_TEXT,0,it.currentTextMessageId)
+								log.debug("add map message $textMessage")
+								app.messagesDbHelper.addLocationMessage(textMessage)
+							}
+//							app.telegramHelper.sendLiveLocationMessage(chatsShareInfo, latitude, longitude)
+//							app.telegramHelper.sendLiveLocationText(chatsShareInfo, location)
 						}
 					}
 				} else if (sharingMode.isNotEmpty()) {
-					val url = getDeviceSharingUrl(location,sharingMode)
-					AndroidNetworkUtils.sendRequestAsync(app, url, null, "Send Location", false, false,
-						object : AndroidNetworkUtils.OnRequestResultListener {
-							override fun onResult(result: String?) {
-								updateShareInfoSuccessfulSendTime(result, chatsShareInfo)
 
-								val osmandBot = app.telegramHelper.getOsmandBot()
-								if (osmandBot != null) {
-									checkAndSendViaBotMessages(chatsShareInfo, TdApi.Location(latitude, longitude), osmandBot)
-								}
-							}
-						})
 				}
+				shareMessages()
 			}
 			lastLocationMessageSentTime = System.currentTimeMillis()
 		}
 		app.settings.updateSharingStatusHistory()
 		refreshNotification()
+	}
+
+	fun shareMessages() {
+		index++
+		val emm = app.messagesDbHelper.getPreparedToShareMessages()
+		emm.forEach {
+			val shareChatInfo = app.settings.getChatsShareInfo()[it.chatId]
+			if (shareChatInfo != null) {
+				if (it.type == LocationMessage.TYPE_USER_TEXT) {
+					indexTextShare++
+					it.status = LocationMessage.STATUS_PENDING
+					app.telegramHelper.sendLiveLocationText(shareChatInfo, it)
+				} else if (it.type == LocationMessage.TYPE_USER_MAP) {
+					indexMapShare++
+					it.status = LocationMessage.STATUS_PENDING
+					app.telegramHelper.sendLiveLocationMap(shareChatInfo, it)
+				} else if (it.type == LocationMessage.TYPE_BOT_TEXT) {
+					indexMapShare++
+					it.status = LocationMessage.STATUS_PENDING
+					app.telegramHelper.sendLiveLocationMap(shareChatInfo, it)
+				} else if (it.type == LocationMessage.TYPE_BOT_MAP) {
+					indexMapShare++
+					it.status = LocationMessage.STATUS_PENDING
+					app.telegramHelper.sendLiveLocationMap(shareChatInfo, it)
+				}
+			}
+		}
 	}
 
 	fun updateSendLiveMessages() {
